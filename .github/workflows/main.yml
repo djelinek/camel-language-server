@@ -3,6 +3,7 @@ name: Main branch - Sonar analysis, signing and deploying
 on:
   push:
     branches: [ main ]
+  workflow_dispatch:
 
 jobs:
   build:
@@ -28,39 +29,44 @@ jobs:
         path: ~/.sonar/cache
         key: ${{ runner.os }}-sonar
         restore-keys: ${{ runner.os }}-sonar
-    - name: Verify credentials setup
+    - name: Verify credentials
       env:
         MAVEN_CENTRAL_USERNAME: ${{ secrets.MAVEN_CENTRAL_USERNAME }}
         MAVEN_CENTRAL_TOKEN: ${{ secrets.MAVEN_CENTRAL_TOKEN }}
       run: |
-        echo "=== settings.xml server config (values masked) ==="
-        sed 's|<username>.*</username>|<username>***</username>|g; s|<password>.*</password>|<password>***</password>|g; s|<passphrase>.*</passphrase>|<passphrase>***</passphrase>|g' ~/.m2/settings.xml
+        echo "=== settings.xml structure (values masked) ==="
+        sed 's|>.*<|>***<|g' ~/.m2/settings.xml
+
         echo ""
-        echo "=== Credential check ==="
-        if [ -z "$MAVEN_CENTRAL_USERNAME" ]; then echo "ERROR: MAVEN_CENTRAL_USERNAME is EMPTY"; else echo "OK: MAVEN_CENTRAL_USERNAME is set (${#MAVEN_CENTRAL_USERNAME} chars)"; fi
-        if [ -z "$MAVEN_CENTRAL_TOKEN" ]; then echo "ERROR: MAVEN_CENTRAL_TOKEN is EMPTY"; else echo "OK: MAVEN_CENTRAL_TOKEN is set (${#MAVEN_CENTRAL_TOKEN} chars)"; fi
+        echo "=== Environment variables ==="
+        if [ -z "$MAVEN_CENTRAL_USERNAME" ]; then echo "❌ MAVEN_CENTRAL_USERNAME is EMPTY"; else echo "✅ MAVEN_CENTRAL_USERNAME is set (${#MAVEN_CENTRAL_USERNAME} chars)"; fi
+        if [ -z "$MAVEN_CENTRAL_TOKEN" ]; then echo "❌ MAVEN_CENTRAL_TOKEN is EMPTY"; else echo "✅ MAVEN_CENTRAL_TOKEN is set (${#MAVEN_CENTRAL_TOKEN} chars)"; fi
+
         echo ""
-        echo "=== Test Sonatype auth ==="
-        HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" -u "$MAVEN_CENTRAL_USERNAME:$MAVEN_CENTRAL_TOKEN" "https://central.sonatype.com/repository/maven-snapshots/com/github/camel-tooling/camel-lsp-server/maven-metadata.xml")
+        echo "=== Direct auth test via curl ==="
+        HTTP_CODE=$(curl -s -o /tmp/response.txt -w "%{http_code}" -u "$MAVEN_CENTRAL_USERNAME:$MAVEN_CENTRAL_TOKEN" "https://central.sonatype.com/repository/maven-snapshots/com/github/camel-tooling/camel-lsp-server/maven-metadata.xml")
         echo "Sonatype HTTP response: $HTTP_CODE"
-    - name: Build, sign and deploy
-      run: mvn -P sign,build-extras -B deploy
-      env:
-        MAVEN_GPG_PASSPHRASE: ${{ secrets.MAVEN_GPG_PASSPHRASE }}
-        MAVEN_CENTRAL_USERNAME: ${{ secrets.MAVEN_CENTRAL_USERNAME }} # see https://central.sonatype.org/publish/generate-portal-token/
-        MAVEN_CENTRAL_TOKEN: ${{ secrets.MAVEN_CENTRAL_TOKEN }} # see https://central.sonatype.org/publish/generate-portal-token/
-    - name: Sonar analysis
-      env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}  # Needed to get PR information, if any
-        SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
-      run: >
-        mvn -B verify
-        -P !build-extras
-        -Dtest="*,!RunnerStandardIOTest,!RunnerWebSocketTest"
-        sonar:sonar
-        -Dsonar.login=${SONAR_TOKEN}
-        -Dsonar.organization="camel-tooling"
-        -Dsonar.projectKey="camel-lsp-server"
-        -Dsonar.projectName="Camel LSP Server"
-        -Dsonar.host.url=https://sonarcloud.io
-        
+        if [ "$HTTP_CODE" != "200" ] && [ "$HTTP_CODE" != "404" ]; then
+          echo "Response body:"
+          cat /tmp/response.txt
+        fi
+    # - name: Build, sign and deploy
+    #   run: mvn -P sign,build-extras -B deploy
+    #   env:
+    #     MAVEN_GPG_PASSPHRASE: ${{ secrets.MAVEN_GPG_PASSPHRASE }}
+    #     MAVEN_CENTRAL_USERNAME: ${{ secrets.MAVEN_CENTRAL_USERNAME }}
+    #     MAVEN_CENTRAL_TOKEN: ${{ secrets.MAVEN_CENTRAL_TOKEN }}
+    # - name: Sonar analysis
+    #   env:
+    #     GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+    #     SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+    #   run: >
+    #     mvn -B verify
+    #     -P !build-extras
+    #     -Dtest="*,!RunnerStandardIOTest,!RunnerWebSocketTest"
+    #     sonar:sonar
+    #     -Dsonar.login=${SONAR_TOKEN}
+    #     -Dsonar.organization="camel-tooling"
+    #     -Dsonar.projectKey="camel-lsp-server"
+    #     -Dsonar.projectName="Camel LSP Server"
+    #     -Dsonar.host.url=https://sonarcloud.io
