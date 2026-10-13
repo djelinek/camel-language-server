@@ -51,8 +51,19 @@ jobs:
           cat /tmp/response.txt
         fi
     - name: Build and deploy (debug)
-      run: mvn -P sign,build-extras -B -X deploy -DskipTests 2>&1 | grep -E "central-publishing|Authentication|Server|credentials|401|password|username|settings|FAIL|ERROR|publish" | head -80
+      run: |
+        set -o pipefail
+        mvn -P sign,build-extras -B deploy -DskipTests 2>&1 | tee /tmp/mvn-output.txt
+        echo "Maven exit code: $?"
       env:
         MAVEN_GPG_PASSPHRASE: ${{ secrets.MAVEN_GPG_PASSPHRASE }}
         MAVEN_CENTRAL_USERNAME: ${{ secrets.MAVEN_CENTRAL_USERNAME }}
         MAVEN_CENTRAL_TOKEN: ${{ secrets.MAVEN_CENTRAL_TOKEN }}
+    - name: Show deploy details on failure
+      if: failure()
+      run: |
+        echo "=== Last 50 lines of Maven output ==="
+        tail -50 /tmp/mvn-output.txt
+        echo ""
+        echo "=== All lines mentioning central.sonatype.com ==="
+        grep -i "central.sonatype" /tmp/mvn-output.txt || echo "(none found)"
