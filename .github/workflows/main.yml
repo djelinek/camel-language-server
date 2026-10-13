@@ -50,23 +50,9 @@ jobs:
           echo "Response body:"
           cat /tmp/response.txt
         fi
-    # - name: Build, sign and deploy
-    #   run: mvn -P sign,build-extras -B deploy
-    #   env:
-    #     MAVEN_GPG_PASSPHRASE: ${{ secrets.MAVEN_GPG_PASSPHRASE }}
-    #     MAVEN_CENTRAL_USERNAME: ${{ secrets.MAVEN_CENTRAL_USERNAME }}
-    #     MAVEN_CENTRAL_TOKEN: ${{ secrets.MAVEN_CENTRAL_TOKEN }}
-    # - name: Sonar analysis
-    #   env:
-    #     GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-    #     SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
-    #   run: >
-    #     mvn -B verify
-    #     -P !build-extras
-    #     -Dtest="*,!RunnerStandardIOTest,!RunnerWebSocketTest"
-    #     sonar:sonar
-    #     -Dsonar.login=${SONAR_TOKEN}
-    #     -Dsonar.organization="camel-tooling"
-    #     -Dsonar.projectKey="camel-lsp-server"
-    #     -Dsonar.projectName="Camel LSP Server"
-    #     -Dsonar.host.url=https://sonarcloud.io
+    - name: Build and deploy (debug)
+      run: mvn -P sign,build-extras -B -X deploy -DskipTests 2>&1 | grep -E "central-publishing|Authentication|Server|credentials|401|password|username|settings|FAIL|ERROR|publish" | head -80
+      env:
+        MAVEN_GPG_PASSPHRASE: ${{ secrets.MAVEN_GPG_PASSPHRASE }}
+        MAVEN_CENTRAL_USERNAME: ${{ secrets.MAVEN_CENTRAL_USERNAME }}
+        MAVEN_CENTRAL_TOKEN: ${{ secrets.MAVEN_CENTRAL_TOKEN }}
