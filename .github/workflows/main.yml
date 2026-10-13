@@ -28,6 +28,21 @@ jobs:
         path: ~/.sonar/cache
         key: ${{ runner.os }}-sonar
         restore-keys: ${{ runner.os }}-sonar
+    - name: Verify credentials setup
+      env:
+        MAVEN_CENTRAL_USERNAME: ${{ secrets.MAVEN_CENTRAL_USERNAME }}
+        MAVEN_CENTRAL_TOKEN: ${{ secrets.MAVEN_CENTRAL_TOKEN }}
+      run: |
+        echo "=== settings.xml server config (values masked) ==="
+        sed 's|<username>.*</username>|<username>***</username>|g; s|<password>.*</password>|<password>***</password>|g; s|<passphrase>.*</passphrase>|<passphrase>***</passphrase>|g' ~/.m2/settings.xml
+        echo ""
+        echo "=== Credential check ==="
+        if [ -z "$MAVEN_CENTRAL_USERNAME" ]; then echo "ERROR: MAVEN_CENTRAL_USERNAME is EMPTY"; else echo "OK: MAVEN_CENTRAL_USERNAME is set (${#MAVEN_CENTRAL_USERNAME} chars)"; fi
+        if [ -z "$MAVEN_CENTRAL_TOKEN" ]; then echo "ERROR: MAVEN_CENTRAL_TOKEN is EMPTY"; else echo "OK: MAVEN_CENTRAL_TOKEN is set (${#MAVEN_CENTRAL_TOKEN} chars)"; fi
+        echo ""
+        echo "=== Test Sonatype auth ==="
+        HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" -u "$MAVEN_CENTRAL_USERNAME:$MAVEN_CENTRAL_TOKEN" "https://central.sonatype.com/repository/maven-snapshots/com/github/camel-tooling/camel-lsp-server/maven-metadata.xml")
+        echo "Sonatype HTTP response: $HTTP_CODE"
     - name: Build, sign and deploy
       run: mvn -P sign,build-extras -B deploy
       env:
